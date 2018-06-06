@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Data.Entity;
+using System.Threading.Tasks;
 using JetBrains.Annotations;
 
 namespace DisposableProject
@@ -10,17 +11,22 @@ namespace DisposableProject
     {
         static void Main()
         {
-            using (var repo = new ItemRepository(new SpecialisedContext()))
-            {
-                foreach (var x in repo.GetAll())
-                    Console.WriteLine(x.Id + ": " + x.Name);
-
-                foreach(var x in repo.GetSomethingElse())
-                    Console.WriteLine(x);
-            }
+            Run().GetAwaiter().GetResult();
 
             Console.WriteLine("Done");
             Console.ReadLine();
+        }
+
+        private static async Task Run()
+        {
+            using (var repo = new ItemRepository(new SpecialisedContext()))
+            {
+                foreach (var x in await repo.GetAll())
+                    Console.WriteLine(x.Id + ": " + x.Name);
+
+                foreach(var x in await repo.GetSomethingElse())
+                    Console.WriteLine(x);
+            }
         }
     }
 
@@ -41,21 +47,21 @@ namespace DisposableProject
         {
         }
 
-        public List<Item> GetSomethingElse()
+        public Task<List<Item>> GetSomethingElse()
         {
-            return new List<Item>() {new Item() {Id = 1, Name = "Some"}};
+            return Task.FromResult(new List<Item>() {new Item() {Id = 1, Name = "Some"}});
         }
     }
 
     public interface IItemRepository : IEntityRepository<Item, int>
     {
-        List<Item> GetSomethingElse();
+        Task<List<Item>> GetSomethingElse();
     }
 
     public interface IEntityRepository<TEntity, in TKey> where TEntity : class
     {
-        List<TEntity> GetAll();
-        TEntity Get(TKey id);
+        Task<List<TEntity>> GetAll();
+        Task<TEntity> Get(TKey id);
     }
 
     public class EntityFrameworkRepository<TEntity, TKey> : IDisposable where TEntity : class
@@ -67,15 +73,14 @@ namespace DisposableProject
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }
         
-        public List<TEntity> GetAll()
+        public async Task<List<TEntity>> GetAll()
         {
-            return _context.GetAll<TEntity>();
+            return await _context.Set<TEntity>().ToListAsync();
         }
         
-        public TEntity Get(TKey id)
+        public async Task<TEntity> Get(TKey id)
         {
-            Console.WriteLine(id);
-            return _context.Get<TEntity>();
+            return await _context.Set<TEntity>().FindAsync(id);
         }
 
         public void Dispose()
@@ -89,38 +94,6 @@ namespace DisposableProject
         public SpecialisedContext() : base("conString")
         {
 
-        }
-    }
-
-    public abstract class DbContext : IDisposable
-    {
-        private readonly string _conStr;
-        private readonly Timer _whynot;
-
-        protected DbContext(string conStr)
-        {
-            _conStr = conStr;
-            _whynot = new Timer(_ => Console.WriteLine("Hi"), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
-        }
-
-        public void Dispose()
-        {
-            _whynot?.Dispose();
-        }
-
-        public List<TEntity> GetAll<TEntity>() where TEntity : class
-        {
-            return new List<TEntity>();
-        }
-
-        public TEntity Get<TEntity>() where TEntity : class
-        {
-            return default(TEntity);
-        }
-
-        public override string ToString()
-        {
-            return _conStr;
         }
     }
 }
