@@ -19,12 +19,14 @@ namespace DisposableProject
 
         private static async Task Run()
         {
-            using (var repo = new ItemRepository(new SpecialisedContext()))
+            using (var context = new SpecialisedContext())
             {
+                var repo = new ItemRepository(context);
+                
                 foreach (var x in await repo.GetAll())
                     Console.WriteLine(x.Id + ": " + x.Name);
 
-                foreach(var x in await repo.GetSomethingElse())
+                foreach (var x in await repo.GetSomethingElse())
                     Console.WriteLine(x);
             }
         }
@@ -43,13 +45,21 @@ namespace DisposableProject
 
     public class ItemRepository : EntityFrameworkRepository<Item, int>, IItemRepository
     {
-        public ItemRepository(DbContext context) : base(context)
+        private readonly SpecialisedContext _context;
+
+        public ItemRepository(SpecialisedContext context) : base(context)
         {
+            _context = context;
         }
 
         public Task<List<Item>> GetSomethingElse()
         {
-            return Task.FromResult(new List<Item>() {new Item() {Id = 1, Name = "Some"}});
+            return Task.FromResult(new List<Item>() { new Item() { Id = 1, Name = "Some" } });
+        }
+
+        public override string ToString()
+        {
+            return _context == null ? "oops" : "yey";
         }
     }
 
@@ -64,7 +74,7 @@ namespace DisposableProject
         Task<TEntity> Get(TKey id);
     }
 
-    public class EntityFrameworkRepository<TEntity, TKey> : IDisposable where TEntity : class
+    public class EntityFrameworkRepository<TEntity, TKey> where TEntity : class
     {
         private readonly DbContext _context;
 
@@ -72,20 +82,15 @@ namespace DisposableProject
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }
-        
+
         public async Task<List<TEntity>> GetAll()
         {
             return await _context.Set<TEntity>().ToListAsync();
         }
-        
+
         public async Task<TEntity> Get(TKey id)
         {
             return await _context.Set<TEntity>().FindAsync(id);
-        }
-
-        public void Dispose()
-        {
-            _context?.Dispose();
         }
     }
 
